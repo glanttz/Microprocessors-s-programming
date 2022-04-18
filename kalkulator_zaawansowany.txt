@@ -1,0 +1,153 @@
+	LJMP START
+	ORG 100H
+	
+START:
+	LCALL LCD_CLR		;czyszczenie wyswietlacza
+    LCALL WAIT_KEY     ; przyjęcie wartości z klawiatury
+    MOV R0, A			;zapisanie wartosci akumulatora do R0
+    LCALL ZMIANA		;wywolanie ZMIANA, czyli zmiana liczbe BCD
+    LCALL WRITE_HEX		;wypisz liczbe bcd
+	
+	LCALL WAIT_KEY		;czekaj na podanie wartosci z kalwiatury
+
+   
+		
+DODAWANIE:
+	CJNE A,#10, ODEJMOWANIE		;(STRZALKA <-)sprawdzamy czy dodawanie, jesli znak z A=10, rob daej. jak nie idz do odejmowanie
+	MOV A, #'+'					;znak sumy
+	LCALL WRITE_DATA			;wypisanie znaku sumy
+	LCALL WAIT_KEY				;czekaj na podanie wartosci z klaiwatury
+	MOV R1, A					;przechowaj wartosc A w R1
+	LCALL ZMIANA				;zmiana liczby na bcd
+	LCALL WRITE_HEX				;wypisanie liczby bcd
+
+	MOV A, #'='					;znak rownania
+	LCALL WRITE_DATA			;wypisanie znaku rownania	
+	MOV A, R0					;przechowaj wartosc R0 w A
+	ADD A, R1					;dodaj watosc R1 oraz A
+	MOV R0, A					;przenies wartosc A do R0
+	LCALL ZMIANA				;zmien na bcd
+	LCALL WRITE_HEX				;wypisz liczbe bcd
+	MOV A, #10					;ustawianie timera
+	LCALL DELAY_100MS			;timer 1s wyswietlania
+    LCALL WAIT_KEY				;czekaj na wartosc z klawiatury
+
+	SJMP START
+	
+	
+	
+ODEJMOWANIE:
+	CJNE A,#11, MNOZENIE		;(STRZALKA ->)sprawdzamy czy ODEJMWOWANIE, jesli znak z A=11, zostan. jak nie skocz tam do mnozenia
+	MOV A, #'-'					;znak odejmowania
+	LCALL WRITE_DATA			;wypisanie znaku odejmowania
+	LCALL WAIT_KEY				;oczekiwanie na wartosc z klawy
+	MOV R1, A					; zapisanie wartosci akumulatora do R1
+	LCALL ZMIANA				;zmiana na bcd
+	LCALL WRITE_HEX				;wypisanie w bcd
+	MOV A, #'='					;znak rownania
+	LCALL WRITE_DATA			;wypisanie znaku rownania
+	MOV A, R0					;przekazane wartosci R0 do A
+	CLR C						;czyscimy bit przeniesienia (jesli czyszczony, to C=0. jak nie to C=1)
+	SUBB A, R1					;odejmij od A R1
+	JC U2						;skocz warunkowo do U2
+	MOV R0, A					; przenies wartosc A do R0
+	LCALL ZMIANA				;zmien na bcd
+	LCALL WRITE_HEX				;wypisz bcd
+	MOV A, #10
+	LCALL DELAY_100MS			;timer 1s na wyswietlaczu
+    LCALL WAIT_KEY				;czekanie na wartosc z klawy
+	
+	SJMP START					;skok krotki do startu
+	
+U2:
+	MOV R2, A					;przeniesienie A do R2
+	MOV A, #'-'					;sztywne wypisanie minusa
+	LCALL WRITE_DATA
+	MOV A, R2					;przeniesienie R2 do A
+	CPL A						;neguj wartosc A(0->1, 1->0)
+	INC A						;zwieksz wartosc A (z takiego powodu, ze jesli C=0 zawsze brakuje wartosci 1 w obliczeniu suma sumarum)
+	MOV R0, A					;przekaz wartosc A do R0
+	LCALL ZMIANA				;bcd zmiana
+	LCALL WRITE_HEX				;wypisz 
+	MOV A, #10
+	LCALL DELAY_100MS			;timer 1s
+	LCALL WAIT_KEY				;czekaj na wartosc z kalwiaturylawy
+	LJMP START
+			
+MNOZENIE:
+	CJNE A,#12, DZIELENIE		;STRZALKA W GORE, sprawdz czy mnozenie
+	MOV A, #'*'
+	LCALL WRITE_DATA
+	LCALL WAIT_KEY
+	MOV R1, A
+	LCALL ZMIANA_SETKI			;zmiana bcd z setkami
+	LCALL WRITE_HEX
+
+	MOV A, #'='
+	LCALL WRITE_DATA
+	MOV A, R0					;przenies R0 do A
+	MOV B, R1					;przenies wartosc R1 do B 
+	MUL AB						;mnozenie wartości A z B - starsza czes wyniku w B, mlodsza w A 
+	LCALL ZMIANA_SETKI			;zmiana z setkami bcd
+	XCH A, B					;zamiana wartosci
+	LCALL WRITE_HEX				;wypisanie starszej czesci
+	MOV A,B						;pobierz mlodsza czesc 
+	LCALL WRITE_HEX				;wypisz mlodsza czesc
+	MOV A, #10
+	LCALL DELAY_100MS
+    LCALL WAIT_KEY
+	LJMP START
+	
+DZIELENIE:
+	CJNE A,#13,MNOZENIE;		;strzalka w dół, sprawdz czy jest to dzielenie
+	MOV A, #'/'					;sztywne wypisanie znaku dzielenia
+	LCALL WRITE_DATA			;wypisanie wartosci
+	LCALL WAIT_KEY				;czekaj za wartscia z klawiatury
+	MOV R1, A					;przenies wartosc A do R1
+	LCALL ZMIANA				;zmien na bcd
+	LCALL WRITE_HEX				;wypisz po zamianie bcd
+
+	MOV A, #'='					;wypisz wartosc sztywna =
+	LCALL WRITE_DATA
+	MOV A, R0					;przenies wartosc R0 do A (dzielna)
+	MOV B, R1					;przenies wartosc R1 do B (dzielnik)
+	DIV AB						; podziel A z B
+	MOV R2, B					;przenies B do R2 (reszte)
+	LCALL ZMIANA				;zmiana na bcd
+	LCALL WRITE_HEX				;wypisz bcd
+	MOV A, #'R'					;znak do reszty , pokazuje po nim ile jest reszty
+	LCALL WRITE_DATA
+	MOV A, R2 					;przenies reszte do akuulatora
+	LCALL WRITE_HEX				;wypisz reszte
+	MOV A, #10
+	LCALL DELAY_100MS
+    LCALL WAIT_KEY
+	
+	LJMP START
+	
+ZMIANA_SETKI: 
+	MOV B, #100		;wydziel setki
+	DIV AB			;dzielac przez 100 liczbe z akumulatora
+	PUSH ACC		; przechowaj w stosie setki
+	
+	MOV A,B			;wydziel dziesiatki dzielac przez 10
+	MOV B, #10
+	DIV AB 			
+	SWAP A			;przesun dziestaki
+	ORL A,B			;dodaj jednostki
+	POP B			;odtworz/zdejmij setki do B 
+	RET				;koniec podprogramu
+	
+	
+ZMIANA: 
+	MOV B, #10		;wartosc 10 przekazana do B(dzielnik), a A to dzielna
+	DIV AB 			;dzielenie wartosci akumulatora z 10-tka, wydzielanie dziesiatek i jednosci
+	SWAP A			;zamiana polbajtow - liczba dziesiatek do gornej polowki A
+	ADD A,B			;dodaj liczbe jednostek - liczba jednostek do dolnej polowki A
+	;ORL A,B
+	RET				;koniec
+	NOP;
+
+STOP:
+	LJMP STOP
+	NOP;
